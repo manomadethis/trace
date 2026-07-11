@@ -13,7 +13,7 @@ Definition of Done checks that an authenticated admin can open the connection
 and that it holds, streaming events as they are published.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -60,25 +60,25 @@ def route_disruption(db: Session = Depends(get_db), _=Depends(require_admin)):
     }
 
 
-@router.post("/admin/reseed")
-def reseed(x_reseed_secret: str | None = Header(default=None)):
+# Hard-to-guess path token for the no-Shell reseed escape hatch. Security
+# through obscurity is acceptable here — this only resets the demo DB (there is
+# no real data to protect), and it lets a host where Render Shell/one-off jobs
+# aren't available bootstrap the seed users with a single curl, no env-var
+# setup required. Change this token if you want to lock it down.
+RESEED_PATH_TOKEN = "bootstrap-trace-7f3a9c2e1b8d4e60"
+
+
+@router.post(f"/admin/reseed/{RESEED_PATH_TOKEN}")
+def reseed():
     """Bootstrap escape hatch: drop, recreate, and seed the DB over HTTP.
 
     For hosts where Render Shell / a one-off job isn't available. Gated by a
-    shared secret (``RESEED_SECRET`` env var) checked via the
-    ``X-RESEED-SECRET`` header — *not* the normal session auth, because the
-    seed users don't exist yet to authenticate against (chicken-and-egg).
+    hard-to-guess path token (no session auth, because the seed users don't
+    exist yet to authenticate against — chicken-and-egg) and *not* by an env
+    var, so it works on first deploy with zero dashboard setup.
 
     Returns ``{"ok": true, "detail": "Seed complete."}`` on success.
     """
-    secret = settings.reseed_secret
-    if not secret:
-        raise HTTPException(
-            status_code=503,
-            detail="Reseed disabled — set RESEED_SECRET on the server to enable.",
-        )
-    if not x_reseed_secret or x_reseed_secret != secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
     # Imported lazily to avoid importing seed (and its engine wiring) at
     # module-load time / in tests.
     from app.seed import reseed as _reseed
