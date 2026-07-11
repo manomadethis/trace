@@ -15,7 +15,7 @@ const TELEGRAM_BOT_URL =
 
 const NAV_LINKS = [
   { label: "How it works", href: "#how-it-works" },
-  { label: "Grade a batch", href: "/login" },
+  { label: "Submit a batch", href: "/login" },
   { label: "For buyers", href: "#for-buyers" },
   { label: "FAQ", href: "#faq" },
 ];
@@ -124,7 +124,7 @@ function Header() {
         </nav>
       </div>
       <Link href="/login">
-        <Button variant="white">Grade a batch</Button>
+        <Button variant="white">Submit a batch</Button>
       </Link>
     </header>
   );
