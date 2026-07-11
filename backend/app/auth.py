@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+import os
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -66,17 +67,26 @@ def verify_password(pw: str, hashed: str) -> bool:
 def set_session(response, user_id: int) -> None:
     """Sign ``user_id`` into the session cookie on ``response``.
 
-    The cookie is httpOnly (no JS access), SameSite=lax (sent on top-level
-    GET navigations, not on cross-site POSTs), and scoped to ``/``. The signed
-    value is opaque to the client; only the server can read/verify it.
+    Cross-origin (Vercel frontend -> Render backend) credentialed fetches need
+    ``SameSite=None; Secure`` or the browser won't send the cookie on the XHR,
+    and every authenticated request 401s. On localhost we keep ``SameSite=Lax``
+    (browsers block ``None``+``Secure`` on plain http, except for localhost).
+    The cookie is httpOnly (no JS access) and scoped to ``/``.
     """
     token = _serializer.dumps({"uid": user_id})
+    # Cross-origin (Vercel frontend -> Render backend) credentialed fetches
+    # need SameSite=None; Secure. Render sets RENDER=true; localhost/dev stays
+    # Lax (browsers reject None+Secure on plain http). Override via
+    # COOKIE_SAMESITE={none|lax} if needed.
+    samesite = os.environ.get("COOKIE_SAMESITE", "none" if os.getenv("RENDER") else "lax")
+    secure = samesite == "none"
     response.set_cookie(
         SESSION_COOKIE,
         token,
         max_age=SESSION_MAX_AGE,
         httponly=True,
-        samesite="lax",
+        samesite=samesite,
+        secure=secure,
         path="/",
     )
 
