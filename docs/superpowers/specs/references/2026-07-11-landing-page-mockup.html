@@ -1,0 +1,352 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TRACE | Catch Spoilage Early</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        body {
+            font-family: 'Kalam', cursive;
+            background-color: #FAF9F6;
+            background-image: radial-gradient(#1a1a1a22 1.5px, transparent 1.5px);
+            background-size: 18px 18px;
+            color: #1a1a1a;
+        }
+        .wobble-1 { transform: rotate(-1deg); }
+        .wobble-2 { transform: rotate(1.5deg); }
+        .wobble-3 { transform: rotate(-2deg); }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hard-shadow {
+            box-shadow: 4px 4px 0px 0px #1a1a1a;
+        }
+        .active-press:active {
+            transform: translate(4px, 4px);
+            box-shadow: 0px 0px 0px 0px #1a1a1a;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#1a1a1a',
+                        'accent': '#E24B4A',
+                        'paper': '#FAF9F6',
+                        'outline': '#1a1a1a',
+                    },
+                    borderRadius: {
+                        'card': '8px',
+                    },
+                    spacing: {
+                        'gutter': '24px',
+                        'container-max': '1024px',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="w-full px-4 md:px-8 py-6 max-w-container-max mx-auto flex justify-between items-center relative z-10">
+<div class="flex items-center gap-8">
+<!-- Logo -->
+<div class="border-2 border-primary rounded-full px-4 py-1 bg-white hard-shadow -rotate-2 flex items-center justify-center">
+<span class="text-2xl font-bold tracking-tight">TRACE</span>
+</div>
+<!-- Desktop Links -->
+<nav class="hidden md:flex gap-6 items-center">
+<a class="hover:text-accent transition-colors text-lg" href="#">How it works</a>
+<a class="hover:text-accent transition-colors text-lg" href="#">Grade a batch</a>
+<a class="hover:text-accent transition-colors text-lg" href="#">For buyers</a>
+<a class="hover:text-accent transition-colors text-lg" href="#">FAQ</a>
+</nav>
+</div>
+<!-- Action Button -->
+<button class="border-2 border-primary bg-white px-5 py-2 rounded-card font-bold hard-shadow active-press transition-all hover:bg-paper">Grade a batch</button>
+</header>
+<!-- Hero Section -->
+<main class="max-w-container-max mx-auto px-4 md:px-8 pt-12 pb-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+<!-- Left Column: Copy -->
+<div class="flex flex-col gap-6 items-start">
+<h1 class="text-5xl md:text-6xl font-bold leading-tight">Enterprise-Scale Supply, <br> Rooted in <br><span class="inline-block wobble-2 underline decoration-accent decoration-4">Local Farming<span class="text-accent">.</span></span></h1>
+<p class="text-xl md:text-2xl leading-relaxed text-gray-800 max-w-xl">Quality-graded, fully traceable produce from Jamaican smallholder farms, sourced reliably enough for your menu or your shelf.</p>
+<div class="flex flex-wrap items-center gap-8 mt-4"><button class="bg-accent text-white border-2 border-primary px-8 py-4 text-xl font-bold rounded-card hard-shadow active-press transition-all hover:brightness-110 flex items-center gap-2 wobble-1">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+    Get supply
+</button>
+<button class="bg-white text-primary border-2 border-primary px-8 py-4 text-xl font-bold rounded-card hard-shadow active-press transition-all hover:bg-paper flex items-center gap-2 wobble-2">Track a batch ↓</button></div>
+<!-- Decorative Scribble (Simulation) -->
+<div class="mt-8 bg-white border-2 border-primary p-3 rounded-card hard-shadow wobble-3 max-w-[200px] -ml-32">
+<p class="text-sm leading-snug font-bold">"We saved $12k in our first month just by rerouting Grade B produce."</p>
+<p class="text-xs mt-2 text-gray-500">— Happy Farm Co.</p>
+</div><div class="mt-8 opacity-20">
+<span class="material-symbols-outlined text-6xl">
+                    gesture
+                </span>
+</div>
+</div>
+<!-- Right Column: Visual Component -->
+<div class="relative w-full max-w-md mx-auto lg:max-w-none">
+<!-- Main Tracking Card -->
+<div class="bg-white border-2 border-primary p-6 rounded-card hard-shadow wobble-1 relative">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-accent" style="font-variation-settings: 'FILL' 1;">sensors</span>
+                        Batch #0412 — traced live
+                    </h3>
+<div class="w-3 h-3 bg-green-500 rounded-full animate-pulse border border-primary"></div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<!-- Box 1 -->
+<div class="border-2 border-dashed border-gray-400 p-4 rounded-card flex flex-col items-center justify-center text-center gap-2 bg-paper/50">
+<span class="material-symbols-outlined text-3xl">agriculture</span>
+<div class="font-bold text-lg">Farm: Grade A</div>
+</div>
+<!-- Box 2 -->
+<div class="border-2 border-dashed border-gray-400 p-4 rounded-card flex flex-col items-center justify-center text-center gap-2 bg-paper/50 relative overflow-hidden">
+<!-- Red highlight overlay -->
+<div class="absolute inset-0 bg-accent/5 pointer-events-none"></div>
+<span class="material-symbols-outlined text-3xl text-accent" style="font-variation-settings: 'FILL' 1;">warehouse</span>
+<div class="font-bold text-lg text-accent">Handoff: Grade B</div>
+</div>
+</div>
+<div class="mt-6 pt-4 border-t-2 border-primary/10 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">info</span>
+<p class="text-lg leading-tight italic">
+                        Rerouted to school feeding · payout unchanged
+                    </p>
+</div>
+<!-- Floating Badge -->
+<div class="absolute -bottom-6 -right-6 bg-accent text-white border-2 border-primary rounded-full w-24 h-24 flex items-center justify-center text-center hard-shadow wobble-2 p-2 leading-none">
+<span class="font-bold text-lg">40kg saved</span>
+</div>
+</div>
+<!-- Background Decorative Card (Tilted) -->
+<div class="absolute -inset-4 border-2 border-primary rounded-card -z-10 wobble-3 opacity-10"></div>
+<!-- Hand-drawn style Image placeholder below -->
+<div class="mt-16 relative">
+<div class="w-full h-48 bg-white border-2 border-primary rounded-card hard-shadow overflow-hidden transform -rotate-1">
+<img class="w-full h-full object-cover grayscale brightness-110 contrast-75" data-alt="A hand-drawn illustration in a charcoal and ink style showing a rustic delivery truck driving through rolling green farm fields under a soft morning sun. The aesthetic is tactile and analog, using a warm off-white paper texture and high-contrast black ink lines. Minimalist red accents highlight the truck's cargo, symbolizing freshness and traceability in a friendly, organic artistic style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRnP3uAOsSeoMf9cwmZvVoXqvda3gQWBEYQEI9f_Re6zCBzjd3Ei8ekPpjYc3GjEEj6R80ve9x2Lukf3U81zpgDQNglAwcDJAUMqIx5KZVNGVqZZKP2M040cxud2LGZTYUtluRkleem5gj6bCsug-AUvuuvFJyWPiaFAn4v5W7rUJa263rpIIxonobxoJh138zhdZzLcICn16blBaKlPdKd3SG2nLaqE5JetH0siAAV-zjX_vbbaxOpruDN1PCSInDpr3P5Gg66Kzk">
+</div>
+<!-- Tape decoration -->
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 w-16 h-8 bg-yellow-100/60 border border-primary/20 rotate-2 mix-blend-multiply"></div>
+</div>
+</div>
+</main><section class="max-w-container-max mx-auto px-4 md:px-8 py-12">
+<h2 class="text-3xl md:text-4xl font-bold mb-16 text-center underline decoration-accent decoration-4 inline-block wobble-1 w-full">How your supply comes together</h2>
+<div class="relative">
+<!-- Connecting Dashed Line -->
+<div class="absolute top-12 left-0 w-full h-0.5 border-t-2 border-dashed border-primary/30 -z-10 hidden md:block"></div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<!-- Step 1 -->
+<div class="flex flex-col items-center text-center gap-4">
+<div class="w-16 h-16 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-1">
+<span class="text-3xl font-bold text-accent">1</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2">Set order</h3>
+<p class="text-lg leading-snug text-gray-800">Define your volume and quality grade via Telegram.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center text-center gap-4">
+<div class="w-16 h-16 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-2">
+<span class="text-3xl font-bold">2</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2">Farms matched</h3>
+<p class="text-lg leading-snug text-gray-800">We dispatch requirements to verified farm clusters.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="flex flex-col items-center text-center gap-4">
+<div class="w-16 h-16 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-3">
+<span class="text-3xl font-bold">3</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2">Quality checked</h3>
+<p class="text-lg leading-snug text-gray-800">Every batch is physically inspected at handoff points.</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="flex flex-col items-center text-center gap-4">
+<div class="w-16 h-16 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-1">
+<span class="text-3xl font-bold">4</span>
+</div>
+<div>
+<h3 class="text-xl font-bold mb-2">Delivery</h3>
+<p class="text-lg leading-snug text-gray-800">Synchronized logistics deliver directly to your door.</p>
+</div>
+</div>
+</div>
+</div>
+</section><section class="bg-surface-container-low py-12 px-4 md:px-8">
+<div class="max-w-container-max mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start lg:col-span-2">
+<!-- Left Column: Input and Status -->
+<div class="flex flex-col gap-8">
+<div class="bg-white p-8 rounded-xl border border-primary/10 shadow-sm">
+<h2 class="text-2xl font-bold mb-6">Enter a batch number</h2>
+<div class="flex gap-4">
+<input class="flex-1 border-2 border-primary/20 rounded-lg px-4 py-3 focus:border-accent outline-none transition-colors" placeholder="0412" type="text">
+<button class="bg-accent text-white px-8 py-3 rounded-lg font-bold hover:brightness-110 transition-all">Track</button>
+</div>
+</div>
+<div class="bg-white p-8 rounded-xl border border-primary/10 shadow-sm">
+<div class="flex justify-between items-center mb-8">
+<h3 class="text-xl font-bold">Batch #0412 · Tomatoes</h3>
+<span class="bg-green-500/10 text-green-500 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2">
+<span class="w-2 h-2 bg-green-500 rounded-full"></span>
+              Delivered
+            </span>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-8">
+<div class="p-4 border border-dashed border-gray-300 rounded-lg">
+<p class="text-xs text-gray-500 uppercase">Farm Level</p>
+<p class="font-bold text-lg">Grade A</p>
+<p class="text-sm text-gray-600">St. Elizabeth Cluster</p>
+</div>
+<div class="p-4 border border-dashed border-gray-300 rounded-lg">
+<p class="text-xs text-gray-500 uppercase">Handoff Level</p>
+<p class="font-bold text-lg">Grade B</p>
+<p class="text-sm text-gray-600">Transit Checked</p>
+</div>
+</div>
+<div class="space-y-6 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
+<div class="flex gap-4 items-start relative">
+<div class="w-4 h-4 rounded-full bg-accent mt-1.5 z-10"></div>
+<div>
+<p class="font-bold">Harvested</p>
+<p class="text-sm text-gray-500">June 12, 06:00</p>
+</div>
+</div>
+<div class="flex gap-4 items-start relative">
+<div class="w-4 h-4 rounded-full bg-accent mt-1.5 z-10"></div>
+<div>
+<p class="font-bold">Handoff to Hub</p>
+<p class="text-sm text-gray-500">June 12, 14:30</p>
+</div>
+</div>
+<div class="flex gap-4 items-start relative">
+<div class="w-4 h-4 rounded-full bg-accent mt-1.5 z-10"></div>
+<div>
+<p class="font-bold">Quality Check Passed</p>
+<p class="text-sm text-gray-500">June 13, 09:00</p>
+</div>
+</div>
+<div class="flex gap-4 items-start relative">
+<div class="w-4 h-4 rounded-full bg-accent mt-1.5 z-10"></div>
+<div>
+<p class="font-bold">Delivered to Buyer</p>
+<p class="text-sm text-gray-500">June 14, 05:45</p>
+</div>
+</div>
+</div>
+</div>
+</div><div class="bg-white p-8 rounded-card border-2 border-primary hard-shadow wobble-2">
+    <div class="flex items-center gap-2 text-gray-500 mb-6">
+      <span class="material-symbols-outlined text-lg">lock</span>
+      <span class="text-lg">Restricted — graders only</span>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block text-gray-600 mb-2">Batch number</label>
+        <div class="bg-primary text-white/70 p-4 rounded-lg border-2 border-primary font-bold">0412</div>
+      </div>
+
+      <div>
+        <label class="block text-gray-600 mb-2">Access code</label>
+        <div class="bg-primary text-white/70 p-4 rounded-lg border-2 border-primary tracking-widest">••••••</div>
+      </div>
+
+      <div>
+        <label class="block text-gray-600 mb-4">New grade</label>
+        <div class="grid grid-cols-3 gap-3">
+          <button class="bg-green-500/10 text-green-500 border-2 border-green-500 py-3 rounded-lg font-bold">A</button>
+          <button class="bg-white border-2 border-gray-300 py-3 rounded-lg font-bold hover:border-primary transition-colors">B</button>
+          <button class="bg-white border-2 border-gray-300 py-3 rounded-lg font-bold hover:border-primary transition-colors">Waste</button>
+        </div>
+      </div>
+
+      <button class="w-full bg-primary text-white py-4 rounded-card font-bold hard-shadow active-press transition-all mt-4">
+        Submit correction
+      </button>
+    </div>
+  </div>
+<!-- Right Column: Testimonial -->
+<div class="flex flex-col gap-6">
+<div class="rounded-xl overflow-hidden border border-primary/10 shadow-lg">
+</div>
+
+</div>
+</div>
+</div>
+</section>
+<!-- Floating UI Decoration -->
+
+<!-- How It Works Anchor Point -->
+<section class="py-12" id="how-it-works"></section>
+<script>
+        // Micro-interaction for buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('scale-95');
+                setTimeout(() => this.classList.remove('scale-95'), 100);
+            });
+        });
+
+        // Subtle parallax or rotation wiggle on mouse move
+        document.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.hard-shadow');
+            const x = (window.innerWidth / 2 - e.pageX) / 50;
+            const y = (window.innerHeight / 2 - e.pageY) / 50;
+
+            cards.forEach(card => {
+                // Only very subtle to keep the hand-drawn feel
+                // card.style.transform += ` translate(${x}px, ${y}px)`;
+            });
+        });
+    </script>
+<!-- CTA Section -->
+<section class="bg-[#fdf1f0] py-24 px-4 md:px-8 text-center">
+<div class="max-w-container-max mx-auto">
+<h2 class="text-5xl md:text-6xl font-bold mb-4">
+      Ready to source <span class="text-accent underline decoration-accent decoration-4">better?</span>
+</h2>
+<p class="text-xl md:text-2xl mb-12 text-gray-800">
+      Join 40+ Caribbean hospitality partners sourcing through TRACE.
+    </p>
+<button class="bg-accent text-white border-2 border-primary px-10 py-5 text-2xl font-bold rounded-card hard-shadow active-press transition-all hover:brightness-110 flex items-center gap-3 mx-auto wobble-1">
+<span class="material-symbols-outlined text-2xl">send</span>
+      Launch Telegram Bot
+    </button>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-white border-t-2 border-dashed border-primary/20 py-12 px-4 md:px-8">
+<div class="max-w-container-max mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex flex-col items-center md:items-start gap-2">
+<span class="text-3xl font-bold tracking-tight">TRACE</span>
+<p class="text-sm text-gray-500">© 2026 TRACE. Human Logistics Sourcing.</p>
+</div>
+<nav class="flex flex-wrap justify-center gap-6 text-lg">
+<a class="hover:text-accent transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-accent transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-accent transition-colors" href="#">Sustainability Report</a>
+</nav>
+<div class="flex gap-4">
+<div class="w-10 h-10 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-2">
+<span class="material-symbols-outlined text-xl">public</span>
+</div>
+<div class="w-10 h-10 border-2 border-primary bg-white flex items-center justify-center hard-shadow wobble-3">
+<span class="material-symbols-outlined text-xl">mail</span>
+</div>
+</div>
+</div>
+</footer>
+</body></html>
