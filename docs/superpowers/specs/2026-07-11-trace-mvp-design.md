@@ -36,10 +36,10 @@ The MVP is the honest ancestor of the production diagram, not a throwaway protot
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | **FastAPI** (Python), deployed to **Railway** | One process: WhatsApp webhook, grading, rules engine, payouts, SSE. Plain modules, not microservices. |
+| Backend | **FastAPI** (Python), deployed to **Railway** | One process: Telegram webhook, grading, rules engine, payouts, SSE. Plain modules, not microservices. |
 | Database | **PostgreSQL** everywhere (local + Railway) | One engine, no SQLite↔Postgres migration risk. ORM via SQLAlchemy. |
 | Real-time | **Server-Sent Events (SSE)** | FastAPI pushes every state change; frontend subscribes via `EventSource`. |
-| WhatsApp | **Twilio WhatsApp Sandbox** → webhook into FastAPI | Conversation channel only. |
+| Messaging | **Telegram Bot API** → webhook into FastAPI | Conversation channel only. Chosen over WhatsApp Sandbox for the demo: no per-recipient approval, no 24-hour customer-service window, no template-message rules — anyone (including a judge) can message the bot instantly. Photos still go through the `/capture` web link, not chat. |
 | Grading | **Vision LLM via OpenRouter** | Temp 0, identical prompt every image. Any model behind one interface. |
 | Routing logic | **Plain Python rules engine** | Deterministic. |
 | Justification text | **One Claude/GPT call** per routing decision | Structured in, text out. The "Golden Prompt" deliverable. |
@@ -51,22 +51,22 @@ The MVP is the honest ancestor of the production diagram, not a throwaway protot
 
 ## 4. Farmer intake — the one friction rule
 
-**WhatsApp carries the conversation. A single web link carries the camera. That link is the only deliberate friction point, and it is universal for every farmer.**
+**Telegram carries the conversation. A single web link carries the camera. That link is the only deliberate friction point, and it is universal for every farmer.**
 
-- The farmer does **not** attach photos in WhatsApp. Ever. No Twilio media plumbing.
-- Flow: farmer texts intent → bot replies with a one-tap camera link carrying a token → the link opens the phone browser to `/capture/[token]` (no app, no login) → farmer photographs the batch with a coin in frame → uploads straight to the backend → bot replies in WhatsApp with the grade, then later with shipment/payout/reroute updates.
+- The farmer does **not** attach photos in Telegram. Ever. No chat-media plumbing.
+- Flow: farmer messages the bot → bot replies with a one-tap camera link carrying a token → the link opens the phone browser to `/capture/[token]` (no app, no login) → farmer photographs the batch with a coin in frame → uploads straight to the backend → bot replies in Telegram with the grade, then later with shipment/payout/reroute updates.
 - The `/capture/[token]` page is the **single, universal photo intake** — used by every farmer.
 - A tech-savvy farmer may additionally use a read-only web dashboard to browse their batches and payouts, but **submission is always the link**.
 
-Pitch line this enables: *"A farmer with a basic phone and WhatsApp can move a harvest to a resort contract — no app, no login."*
+Pitch line this enables: *"A farmer with a basic phone and Telegram can move a harvest to a resort contract — no app, no login."*
 
 ---
 
 ## 5. Architecture
 
 ```
-📱 WHATSAPP (Twilio Sandbox) — conversation only
-   farmer texts intent
+💬 TELEGRAM Bot API — conversation only
+   farmer messages the bot
         │ webhook
         ▼
 ┌─────────────────────────────────────────────────────────────┐
@@ -103,7 +103,7 @@ The ★-marked decay loop is the differentiator: simulated in transit, detected 
 
 The atom is a **Batch**. It is created at intent, graded twice, lives inside a **Virtual Shipment**, and ends at one destination with a payout.
 
-- **Farmer** — id, name, phone (WhatsApp), lat/lng. (trust score: roadmap)
+- **Farmer** — id, name, telegram_chat_id, lat/lng. (trust score: roadmap)
 - **Buyer** — id, name, type (`premium | secondary | composter`), lat/lng, demand (crop, grade, kg, price/kg), capacity.
 - **Contract** — id, premium buyer, crop, grade, kg target, price/kg, deadline, status (`open | fulfilling | fulfilled | short`).
 - **Batch** — id, farmer, crop, kg, lat/lng, status (state machine, §7), `farm_grade`, `handoff_grade`, `final_grade`, `decay_event` (nullable), photo refs, `grade_reason_farm`, `grade_reason_handoff`.
@@ -191,7 +191,7 @@ Handoff pass: `degraded copy of the same photo → LLM → {grade: B, "moderate 
 There are exactly **two LLM surfaces**, both tightly scoped, and **neither moves money autonomously**:
 
 1. **Vision grader** (OpenRouter, §8) — produces a grade + reason. Disambiguates quality; does not decide payouts or routes.
-2. **Routing justification** (Claude/GPT) — turns a structured `RoutingDecision` into the justification text (audit trail) and the farmer's WhatsApp message. The rules engine has already decided the destination; the LLM only explains it.
+2. **Routing justification** (Claude/GPT) — turns a structured `RoutingDecision` into the justification text (audit trail) and the farmer's Telegram message. The rules engine has already decided the destination; the LLM only explains it.
 
 **Pitch framing:** the system is described with the "agent" *naming* from the original diagram (Intake, Grading, Aggregation, Contract, Routing, Payout) because it is evocative and maps to the roadmap — but we are precise that these are **deterministic components orchestrated by one state machine, not autonomous LLMs**. The strongest Q&A defense this gives: *"The LLM never reroutes food or reprices a payout. A deterministic, reproducible rules engine does. The LLM only writes the explanation a human reads."* Money-moving decisions are auditable and reproducible; only the *wording* varies.
 
@@ -224,7 +224,7 @@ ELIF handoff_grade == Waste (true spoilage):
     → batch feeds back as a demand/capacity signal
 ```
 
-**Then** the single Claude/GPT call: the rules engine produces `{reason_code, from, to, facts}`; the LLM turns that into the logged justification and the farmer's WhatsApp message. Structured in, text out.
+**Then** the single Claude/GPT call: the rules engine produces `{reason_code, from, to, facts}`; the LLM turns that into the logged justification and the farmer's Telegram message. Structured in, text out.
 
 **Returning-leg fleet:** when assigning a reroute destination, prefer a buyer/composter on (or near) the route's returning leg — the same truck drops premium produce and hauls rerouted/waste back. Straight-line lat/lng is sufficient for the MVP.
 
@@ -264,11 +264,11 @@ The MVP must demo well **live, recorded, and self-serve via URL.** A determinist
 - **1 premium contract:** a resort wants 200 kg Grade A tomatoes by 4 pm.
 - **1 secondary buyer:** a school feeding program (Grade B tomatoes).
 - **1 composter** on the returning leg.
-- **One batch pre-set to decay** the moment it ships, so the full cascade (ship → decay → re-grade → reroute → re-payout → WhatsApp reason) plays in ~3 minutes.
+- **One batch pre-set to decay** the moment it ships, so the full cascade (ship → decay → re-grade → reroute → re-payout → Telegram reason) plays in ~3 minutes.
 
 **Demo requirements:**
 - The Admin view shows the cascade live via SSE.
-- The farmer's WhatsApp receives the grade, then the reroute reason.
+- The farmer's Telegram receives the grade, then the reroute reason.
 - The buyer sees their contract fulfillment tick down and back up as the system backfills.
 - Labels, empty states, and a clearly-marked "run the demo" path so a stranger poking the URL cold can follow it without narration.
 
@@ -279,7 +279,7 @@ The MVP must demo well **live, recorded, and self-serve via URL.** A determinist
 - **Grading failure / malformed output:** the LLM is told a coin is in frame by the prompt (there is no separate coin-detection step — we removed OpenCV). If the farmer uploads a photo with no coin, the LLM will typically say so in its `reason`; for the MVP we accept this and do **not** gate on coin presence (no client-side CV check). LLM call failure, rate-limit, or malformed JSON → retry once, then hold the batch at `HARVESTED` with an error event in the audit trail (operator-visible).
 - **No secondary buyer / no composter capacity:** batch goes to `LOST`, logged, feeds back as a demand signal.
 - **Past spoilage window / no pickup capacity:** `LOST`.
-- **WhatsApp delivery failure:** retried with backoff; never blocks the state machine (the audit trail still records the outcome).
+- **Telegram delivery failure:** retried with backoff; never blocks the state machine (the audit trail still records the outcome).
 - **SSE disconnect:** the frontend reconnects and re-syncs full batch state from REST on reconnect (SSE is a notification channel, not the source of truth).
 
 ---
