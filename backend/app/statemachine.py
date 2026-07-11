@@ -182,8 +182,18 @@ def transition(
 
     batch.status = dest.value
 
-    # Task 4: log_audit(db, batch, dest, ctx) + SSE fan-out go here.
-    # (Do NOT implement here — Task 4 owns the audit hook.)
-
     db.commit()
+
+    # Audit + SSE fan-out (Task 4). Imported inside the function to avoid an
+    # import cycle: app.events -> app.models <- app.statemachine. The DB write
+    # is the source of truth (always happens); the SSE fan-out is best-effort.
+    from app.events import log_audit
+
+    log_audit(
+        db,
+        batch.id,
+        f"transition:{dest.value}",
+        {"from": source.value, "to": dest.value, **ctx},
+    )
+
     return batch
