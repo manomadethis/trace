@@ -129,7 +129,7 @@ One machine governs a batch's lifecycle. Every transition is a guarded, logged, 
 `HARVESTED · GRADED_FARM · POOLED · CONTRACTED · SHIPPED · GRADED_HANDOFF · REROUTED · DELIVERED · DELIVERED_SECONDARY · COMPOSTED · PAID · DISPUTED · LOST`
 
 **Transitions (named, guarded):**
-`harvested→graded_farm` (after photo+coin uploaded) · `graded_farm→pooled` · `pooled→contracted` (HITL: buyer confirms) · `contracted→shipped` · `shipped→graded_handoff` · `graded_handoff→delivered` (grade unchanged) · `graded_handoff→rerouted` (downgraded) · `graded_handoff→composted` (true waste) · `rerouted→delivered_secondary` · `delivered→paid` / `delivered_secondary→paid` (payout released) · `delivered→disputed` (HITL: buyer quality mismatch) · `→lost` (no pickup/composter capacity or past spoilage window).
+`harvested→graded_farm` (after photo+coin uploaded) · `graded_farm→pooled` · `pooled→contracted` (HITL: buyer confirms) · `contracted→shipped` · `shipped→graded_handoff` · `graded_handoff→delivered` (grade unchanged) · `graded_handoff→rerouted` (downgraded) · `graded_handoff→composted` (true waste) · `rerouted→delivered_secondary` · `delivered→paid` / `delivered_secondary→paid` (payout released) · `composted→paid` (zero-amount payout released, closes the loop) · `delivered→disputed` (HITL: buyer quality mismatch) · `→lost` (no pickup/composter capacity or past spoilage window).
 
 **Rules:**
 - A batch is always in exactly one state.
@@ -175,10 +175,12 @@ The **A↔B boundary is USDA's "damage vs serious damage" distinction** — a re
 
 ### 8.3 How decay is detected (image-level)
 
-The transit-decay simulator operates on **image pixels**, not on a score. Between the farm grade and the handoff grade, the simulator bakes degradation into the stored handoff image (PIL): darkening / browning of the produce region and soft-spot / wrinkle artifacts. The same prompt, same model, temp 0 then genuinely re-grades the worse-looking photo lower — because the photo *is* worse. This keeps the pitch claim ("we detect spoilage in the gap") honest rather than theatrical.
+The transit-decay simulator operates on **image pixels**, not on a score. At handoff the simulator derives the handoff image from the **original farm photo** (there is no second photo upload in the MVP — the `/capture` flow runs once, at the farm) and bakes degradation into it with PIL: darkening / browning of the produce region and soft-spot / wrinkle artifacts. The same prompt, same model, temp 0 then genuinely re-grades the worse-looking photo lower.
+
+**Honesty note (important for the pitch):** in a one-day demo there is no real transit, so the *decay itself is simulated*. What is **not** simulated is the detection: the LLM genuinely reads the degraded photo as a lower grade — the same mechanism that would catch real transit spoilage from a true handoff photo in production. Pitch this precisely: *"we simulate the decay because there's no real truck in a demo, but the detection, reroute, and repricing are all real and would fire unchanged on a genuine spoiled-handoff photo."* Do **not** claim the demo catch is "honest spoilage" — it is honest *detection* of simulated spoilage. (Roadmap: a real second capture at the aggregation point replaces the simulator with no other code changes.)
 
 Farm pass: `original photo → LLM → {grade: A, "uniform ripe, no damage"}`
-Handoff pass: `degraded photo → LLM → {grade: B, "moderate blemishing, uneven color"}`
+Handoff pass: `degraded copy of the same photo → LLM → {grade: B, "moderate blemishing, uneven color"}`
 
 ---
 
@@ -210,9 +212,12 @@ ELIF downgraded A→B (transit decay):
     2. recompute remaining batches' % and contract fulfillment
     3. find a secondary buyer with demand + capacity reachable on the
        RETURNING leg (straight-line lat/lng — no PostGIS)
-       yes           → REROUTED → DELIVERED_SECONDARY
-       near-spoilage → flash-sale tier (deeper discount) → DELIVERED_SECONDARY
-       none          → COMPOSTED (composter on returning leg) or LOST
+       yes  → REROUTED → DELIVERED_SECONDARY
+       none → COMPOSTED (composter on returning leg) or LOST
+
+       (No separate "flash-sale tier" in the MVP — near-spoilage simply
+        routes to the same secondary buyer at the secondary price. A
+        discounted flash-sale tier is roadmap.)
 
 ELIF handoff_grade == Waste (true spoilage):
     → COMPOSTED if composter capacity on returning leg, else LOST
@@ -227,17 +232,20 @@ ELIF handoff_grade == Waste (true spoilage):
 
 ## 11. Payout math
 
-**Rule:** a batch pays out at **delivered grade × destination price/kg**, held from `CONTRACTED`, released at `DELIVERED` / `DELIVERED_SECONDARY`. **Never zero unless true waste or lost.**
+**Rule:** a batch pays out at **delivered grade × destination price/kg**, held from `CONTRACTED`, released at a terminal state. **Farmer payout is never zero unless the batch is composted (true waste) or lost.**
 
 - Premium contract fulfilled: each farmer gets `their_kg × premium_price/kg`, with their share of the Virtual Shipment's contribution.
 - Batch rerouted A→B: that farmer gets `their_kg × secondary_price/kg`. The premium contract is now short by that kg — fulfillment % recomputes and is either backfilled from the remaining A-grade pool or marked short (visible to the buyer).
-- True waste → composted: payout **zero**, but the batch is logged and feeds back as a demand signal (the pitch's "we proved the loss, we didn't hide it").
+- True waste → composted: a **zero-amount Payout row is still created and released** (`composted→paid`), so the farmer sees an explicit, explained "$0 — batch spoiled in transit, routed to compost" rather than a silent gap. The batch is logged and feeds back as a demand signal (the pitch's "we proved the loss, we didn't hide it").
+- Lost: no Payout row; the batch is logged as `LOST` with a reason.
+
+**Buyer-side money (premium contract):** the buyer's deposit is held per-contract (not per-batch) at confirmation. At fulfillment, the buyer pays only for kg actually delivered at Grade A. If the contract finishes `short` (kg lost to reroutes/waste that couldn't be backfilled), the short portion is **refunded or never charged** — the buyer never pays for produce they didn't receive. The contract status (`fulfilled | short`) drives this, and the buyer dashboard shows the reconciliation. (Escrow/funds movement itself is out of scope for the MVP — the spec models the *obligation*; a payments provider is roadmap.)
 
 ---
 
 ## 12. Human-in-the-loop
 
-Exactly **three** touchpoints, deliberately scoped:
+Exactly **two** touchpoints, deliberately scoped:
 
 1. **Contract confirmation** — a human (the premium buyer) confirms the proposed fulfillment plan before batches ship. (Real HITL; blocks the `contracted→shipped` transition.)
 2. **Delivery dispute** — when a buyer flags a delivered batch as a quality mismatch, the batch goes to `DISPUTED` for human reconciliation referencing the audit trail. (Real HITL.)
@@ -268,7 +276,7 @@ The MVP must demo well **live, recorded, and self-serve via URL.** A determinist
 
 ## 14. Error handling
 
-- **Grading failure / no coin detected:** the `/capture` page rejects the photo and asks for a retake *before* it reaches the LLM (a guard, not a failure state). LLM call failure or malformed JSON → retry once, then hold the batch at `HARVESTED` with an error event in the audit trail (operator-visible).
+- **Grading failure / malformed output:** the LLM is told a coin is in frame by the prompt (there is no separate coin-detection step — we removed OpenCV). If the farmer uploads a photo with no coin, the LLM will typically say so in its `reason`; for the MVP we accept this and do **not** gate on coin presence (no client-side CV check). LLM call failure, rate-limit, or malformed JSON → retry once, then hold the batch at `HARVESTED` with an error event in the audit trail (operator-visible).
 - **No secondary buyer / no composter capacity:** batch goes to `LOST`, logged, feeds back as a demand signal.
 - **Past spoilage window / no pickup capacity:** `LOST`.
 - **WhatsApp delivery failure:** retried with backoff; never blocks the state machine (the audit trail still records the outcome).
