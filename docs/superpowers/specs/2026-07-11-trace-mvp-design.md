@@ -75,6 +75,18 @@ The demand feed is derived (Slice D) from open contracts and is also the natural
 
 ---
 
+## 4b. Auth & access control
+
+Auth is what makes the visibility rule (§4a) **real** — it is enforced at the API and database, not merely hidden in the UI. Three mechanisms, matched to three user kinds:
+
+1. **Signed capture token (farmers — no login).** When the Telegram bot creates a batch at intent, it issues an unguessable, time-boxed token tied to *that one batch*. The `/capture/{token}` page needs no login — the token in the URL *is* the auth. Single-purpose, expires, one-batch scope.
+2. **Role-based sessions (admin + buyers + composters — the web UI).** A handful of B2B buyer accounts + one admin are created at seed time (no signup page — that's roadmap). `POST /auth/login` sets a signed httpOnly **session cookie**; the role lives on the `User` row. Passwords are **bcrypt-hashed** even in the MVP. Every web route is gated by a FastAPI dependency (`require_admin`, `require_buyer(type=premium|secondary)`, `require_composter`); **a premium buyer's contract query is scoped at the DB layer to their own `buyer_id`**, so devtools can't leak another buyer's contract. No session → 401; wrong role → 403.
+3. **SSE stream (admin only).** `GET /admin/stream` requires the admin session.
+
+The web UI is for admins and customers only (§4a) — there is no farmer login, because farmers are Telegram-only. Roadmap: replace the seed-time login with OAuth/SSO for real buyers; the role dependencies and DB-level scoping stay identical.
+
+---
+
 ## 5. Architecture
 
 ```
@@ -116,10 +128,11 @@ The ★-marked decay loop is the differentiator: simulated in transit, detected 
 
 The atom is a **Batch**. It is created at intent, graded twice, lives inside a **Virtual Shipment**, and ends at one destination with a payout.
 
+- **User** — id, email (unique), bcrypt password hash, role (`admin | premium_buyer | secondary_buyer | composter`), optional `buyer_id` link. Authenticates the web UI (§4b). Created at seed time.
 - **Farmer** — id, name, telegram_chat_id, lat/lng. (trust score: roadmap)
 - **Buyer** — id, name, type (`premium | secondary | composter`), lat/lng, demand (crop, grade, kg, price/kg), capacity.
 - **Contract** — id, premium buyer, crop, grade, kg target, price/kg, deadline, status (`open | fulfilling | fulfilled | short`).
-- **Batch** — id, farmer, crop, kg, lat/lng, status (state machine, §7), `farm_grade`, `handoff_grade`, `final_grade`, `decay_event` (nullable), photo refs, `grade_reason_farm`, `grade_reason_handoff`.
+- **Batch** — id, farmer, crop, kg, lat/lng, status (state machine, §7), `farm_grade`, `handoff_grade`, `final_grade`, `decay_event` (nullable), photo refs, `grade_reason_farm`, `grade_reason_handoff`, `capture_token` (the farmer's one-time upload secret, §4b), `capture_token_expires_at`.
 - **VirtualShipment** — id, contract, member batches with each one's `%` contribution, total kg, status.
 - **Route** — id, ordered pickups → handoff point → buyer, assigned batch ids, returning-leg capacity (for waste→composter).
 - **RoutingDecision** — id, batch, `from_destination`, `to_destination`, `reason_code` (`transit_decay | route_disruption | quality_mismatch`), `claude_justification`, timestamp.

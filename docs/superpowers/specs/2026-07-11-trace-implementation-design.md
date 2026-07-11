@@ -39,6 +39,7 @@ trace/
       config.py                # env loading (pydantic-settings)
       db.py                    # SQLAlchemy engine + sessionmaker + get_db dependency
       models.py                # ALL tables (spec §6) — owned by core, day one
+      auth.py                  # session middleware, bcrypt, role dependencies — core
       statemachine.py          # Batch lifecycle: states, transition table, guards — core
       events.py                # SSE pub/sub bus + AuditEvent writer — core
       seed.py                  # deterministic seed — core
@@ -81,12 +82,13 @@ The shared trunk. Every slice codes against this. It must land on `main` before 
 
 **Deliverables:**
 1. **`compose.yaml`** — `app` (FastAPI, hot-reload in dev) + `db` (Postgres 16), healthchecks, a `seed` one-shot. `docker-compose up` boots clean.
-2. **`models.py`** — all nine tables from product spec §6, fully: `Farmer`, `Buyer`, `Contract`, `Batch`, `VirtualShipment` (+ the `VirtualShipmentBatch` link table holding `%` contribution), `Route`, `RoutingDecision`, `Payout`, `AuditEvent`. Use SQLAlchemy 2.0 declarative. Include the two grade fields on `Batch` (`farm_grade`, `handoff_grade`, `final_grade`) and both reason fields.
-3. **`statemachine.py`** — the `Batch` lifecycle from product spec §7: all 13 states, the named guarded transitions, raises on illegal moves, and on every successful transition (a) appends an `AuditEvent`, (b) publishes to the SSE bus. **Slices never mutate `batch.status` directly — they call `batch.transition(DEST, **ctx)`.** This invariant is what keeps merges clean.
-4. **`events.py`** — an in-process SSE pub/sub (a simple `asyncio` broker; no external broker for the MVP) plus the `AuditEvent` writer. `publish(event_type, payload)` → all connected SSE clients receive it.
-5. **`seed.py`** — deterministic seed (product spec §13): 6 tomato farmers across a small geography, 1 resort premium contract (200 kg Grade A by 4 pm), 1 school-feeding secondary buyer, 1 composter on the returning leg, and **one batch parked at `GRADED_FARM`** ready to flow. Idempotent (`seed.py --reset` drops + recreates + inserts).
-6. **REST skeletons** — route modules with handlers returning HTTP 501 Not Implemented, so the frontend can wire real routes from minute one. Includes the `GET /admin/stream` SSE endpoint stub.
-7. **`/health`** + **`config.py`** (pydantic-settings env loading) + **`.env.example`** listing every key slices will need (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`, `LLM_JUSTIFICATION_MODEL`, etc.).
+2. **`models.py`** — all tables from product spec §6, fully: `User` (id, email, bcrypt hash, role, optional buyer_id), `Farmer`, `Buyer`, `Contract`, `Batch` (incl. `capture_token` + `capture_token_expires_at`), `VirtualShipment` (+ the `VirtualShipmentBatch` link table holding `%` contribution), `Route`, `RoutingDecision`, `Payout`, `AuditEvent`. Use SQLAlchemy 2.0 declarative. Include the two grade fields on `Batch` (`farm_grade`, `handoff_grade`, `final_grade`) and both reason fields.
+3. **`auth.py`** — bcrypt password hashing, signed httpOnly **session-cookie** middleware, and the role dependencies: `require_admin`, `require_buyer(type=...)`, `require_composter`, plus `current_user()`. **DB-level scoping helpers** so a premium buyer's queries filter to their own `buyer_id` (this is what enforces product-spec §4a — the visibility rule must hold at the DB, not just the UI). Also: `POST /auth/login`, `POST /auth/logout`, and a `generate_capture_token(batch)` helper (random urlsafe token + DB row + expiry) used by Slice B when a batch is created.
+4. **`statemachine.py`** — the `Batch` lifecycle from product spec §7: all 13 states, the named guarded transitions, raises on illegal moves, and on every successful transition (a) appends an `AuditEvent`, (b) publishes to the SSE bus. **Slices never mutate `batch.status` directly — they call `batch.transition(DEST, **ctx)`.** This invariant is what keeps merges clean.
+5. **`events.py`** — an in-process SSE pub/sub (a simple `asyncio` broker; no external broker for the MVP) plus the `AuditEvent` writer. `publish(event_type, payload)` → all connected SSE clients receive it.
+6. **`seed.py`** — deterministic seed (product spec §13): 6 tomato farmers across a small geography, 1 resort premium contract (200 kg Grade A by 4 pm), 1 school-feeding secondary buyer, 1 composter on the returning leg, **the seed-time `User` accounts** (1 admin + buyer accounts, bcrypt-hashed), and **one batch parked at `GRADED_FARM`** ready to flow. Idempotent (`seed.py --reset` drops + recreates + inserts).
+7. **REST skeletons** — route modules with handlers returning HTTP 501 Not Implemented, so the frontend can wire real routes from minute one. Includes the `GET /admin/stream` SSE endpoint stub. Routes are gated by the role dependencies from `auth.py` (item 3).
+8. **`/health`** + **`config.py`** (pydantic-settings env loading) + **`.env.example`** listing every key slices will need (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`, `LLM_JUSTIFICATION_MODEL`, `SESSION_SECRET`, etc.).
 
 **Definition of done for Phase 0:** `docker-compose up` → `seed.py --reset` → `GET /health` returns 200 → `GET /batches` returns the seeded batch at `GRADED_FARM` → `GET /admin/stream` holds an SSE connection. No slice logic yet — just the spine.
 
@@ -167,10 +169,20 @@ POST /telegram/webhook  -> receives inbound messages
 # Core exports (Phase 0)
 Batch.transition(dest: State, **ctx) -> None   # the ONLY way state changes
 publish(event_type: str, payload: dict) -> None  # SSE bus
-GET /admin/stream        -> text/event-stream (SSE)
-GET /batches, GET /contracts, GET /contracts/mine, POST /contracts/{id}/confirm, GET /payouts  # REST
-GET /demand              -> anonymized demand feed [{crop, grade, qty_band, urgency}]  # for admin view
-                             (the same feed is sent to farmers as Telegram messages by Slice B)
+generate_capture_token(batch) -> token          # for farmer upload links (no login)
+# Auth (role-gated REST):
+POST /auth/login {email,password} -> sets signed session cookie
+GET  /admin/stream          -> text/event-stream (SSE)          [require_admin]
+GET  /batches               -> all batches                       [require_admin]
+GET  /contracts             -> all contracts                     [require_admin]
+GET  /contracts/mine        -> WHERE buyer_id = current_user     [require_buyer(premium)]
+POST /contracts/{id}/confirm                                    [require_buyer(premium), owns contract]
+GET  /offers                -> incoming reroute offers           [require_buyer(secondary)]
+GET  /pickups               -> waste pickups                     [require_composter]
+GET  /payouts               -> payouts                           [require_admin]
+POST /capture/{token}       -> upload photo (token-gated, no login)
+GET  /demand                -> anonymized demand feed [{crop,grade,qty_band,urgency}]  [require_admin]
+                              (the same feed is messaged to farmers by Slice B)
 ```
 
 **The single rule that keeps merges clean:** `batch.status` is mutated **only** inside `Batch.transition()`, in core. Every slice calls `transition()`. No slice writes `batch.status = "..."` directly. This guarantees the four slice branches never conflict on the most-contended field.
