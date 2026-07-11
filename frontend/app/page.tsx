@@ -136,7 +136,7 @@ function Header() {
 
 function Hero() {
   return (
-    <main className="mx-auto grid w-full max-w-[1024px] grid-cols-1 items-center gap-16 px-4 pb-24 pt-12 md:px-8 lg:grid-cols-2">
+    <main className="mx-auto grid w-full max-w-[1024px] grid-cols-1 items-center gap-16 px-4 pb-8 pt-12 md:px-8 lg:grid-cols-2">
       {/* Left column: copy */}
       <div className="flex flex-col items-start gap-6">
         <h1 className="text-5xl font-bold leading-tight md:text-6xl">
@@ -176,7 +176,7 @@ function Hero() {
             &ldquo;We saved $12k in our first month just by rerouting Grade B
             produce.&rdquo;
           </p>
-          <p className="mt-2 text-xs text-gray-500">— Happy Farm Co.</p>
+          <p className="mt-2 text-xs text-gray-500">— Solid Groundations</p>
         </Card>
         <div className="mt-8 opacity-20">
           <span className="material-symbols-outlined text-6xl">gesture</span>
@@ -253,7 +253,7 @@ function HowItWorks() {
   return (
     <section
       id="how-it-works"
-      className="mx-auto max-w-[1024px] px-4 py-12 md:px-8"
+      className="mx-auto max-w-[1024px] px-4 pb-12 pt-2 md:px-8"
     >
       <h2 className="wobble-1 mb-16 inline-block w-full text-center text-3xl font-bold underline decoration-accent decoration-4 md:text-4xl">
         How your supply comes together
