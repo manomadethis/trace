@@ -221,6 +221,8 @@ There are exactly **two LLM surfaces**, both tightly scoped, and **neither moves
 
 **Pitch framing:** the system is described with the "agent" *naming* from the original diagram (Intake, Grading, Aggregation, Contract, Routing, Payout) because it is evocative and maps to the roadmap — but we are precise that these are **deterministic components orchestrated by one state machine, not autonomous LLMs**. The strongest Q&A defense this gives: *"The LLM never reroutes food or reprices a payout. A deterministic, reproducible rules engine does. The LLM only writes the explanation a human reads."* Money-moving decisions are auditable and reproducible; only the *wording* varies.
 
+**The "dual-agent, dual-purpose" framing (for the rubric):** the rubric explicitly asks whether a *dual-agent* system was built and whether the fleet shifts purpose on the return leg. Pitch the two agents as roles over the same fleet: the **Outbound Agent** (moves Grade A produce to the premium buyer) and the **Return-Leg Agent** (moves downgraded/waste produce to the secondary buyer or composter on the returning leg). Same truck, two purposes, two rule-sets — the dual-purpose network the problem statement asks for. Under the hood both are the same deterministic rules engine + state machine; the "two agents" are the two routing regimes (outbound vs return), not two LLMs.
+
 ---
 
 ## 10. Routing & the self-healing cascade
@@ -248,6 +250,14 @@ ELIF downgraded A→B (transit decay):
 ELIF handoff_grade == Waste (true spoilage):
     → COMPOSTED if composter capacity on returning leg, else LOST
     → batch feeds back as a demand/capacity signal
+
+ELIF route disruption (road/port washout closes the planned leg):
+    → reason_code = route_disruption
+    → recompute the returning leg to a reachable fallback destination
+      (alternate composter or secondary buyer) via straight-line lat/lng
+    → re-payout at the new destination's terms
+    → batch keeps flowing; the disruption is logged, not fatal
+    (This is Anomaly 2 in the demo — shows chaos-handling beyond decay.)
 ```
 
 **Then** the single Claude/GPT call: the rules engine produces `{reason_code, from, to, facts}`; the LLM turns that into the logged justification and the farmer's Telegram message. Structured in, text out.
@@ -289,12 +299,14 @@ The MVP must demo well **live, recorded, and self-serve via URL.** A determinist
 - **6 farmers** across a small geography, all growing **tomatoes**.
 - **1 premium contract:** a resort wants 200 kg Grade A tomatoes by 4 pm.
 - **1 secondary buyer:** a school feeding program (Grade B tomatoes).
-- **1 composter** on the returning leg.
-- **One batch pre-set to decay** the moment it ships, so the full cascade (ship → decay → re-grade → reroute → re-payout → Telegram reason) plays in ~3 minutes.
+- **2 composters** on the returning leg (one primary, one fallback reachable by an alternate route — this enables the route-disruption anomaly below).
+- **Anomaly 1 — transit decay (the Twist):** one batch pre-set to decay the moment it ships, so the full cascade (ship → decay → re-grade → reroute → re-payout → Telegram reason) plays in ~3 minutes. The returning leg visibly carries the downgraded batch to the secondary buyer.
+- **Anomaly 2 — route disruption (chaos-handling):** a road/port washout closes the primary route to the primary composter while a waste batch is en route. The system detects the disruption, recomputes the returning leg to the **fallback composter** via the alternate route (`reason_code=route_disruption`), and re-payouts — no manual intervention. This shows the system handles a *different* anomaly than decay, answering the "what if a typhoon knocks out Island B" curveball.
 
 **Demo requirements:**
-- The Admin view shows the cascade live via SSE.
-- The farmer's Telegram receives the grade, then the reroute reason.
+- The Admin view shows **both anomalies** live via SSE, each clearly labeled (transit-decay reroute; route-disruption returning-leg recompute).
+- The returning-leg fleet is **visibly dual-purpose**: the same truck drops premium produce and hauls rerouted/waste back. This is the "twist demonstration" the rubric demands — it must be obvious on screen.
+- The farmer's Telegram receives the grade, then each reroute reason (grade/category-framed, no destination).
 - The buyer sees their contract fulfillment tick down and back up as the system backfills.
 - Labels, empty states, and a clearly-marked "run the demo" path so a stranger poking the URL cold can follow it without narration.
 
@@ -307,6 +319,20 @@ The MVP must demo well **live, recorded, and self-serve via URL.** A determinist
 - **Past spoilage window / no pickup capacity:** `LOST`.
 - **Telegram delivery failure:** retried with backoff; never blocks the state machine (the audit trail still records the outcome).
 - **SSE disconnect:** the frontend reconnects and re-syncs full batch state from REST on reconnect (SSE is a notification channel, not the source of truth).
+
+---
+
+## 14a. Offline & degraded-mode resilience (island infrastructure)
+
+Island connectivity is unstable; the rubric weights this heavily. The MVP's resilience is **narrative + degraded-mode logic** (no offline PWA build for v1 — that's roadmap). Three deliberate choices:
+
+1. **Telegram as a low-bandwidth channel.** Text-first messaging works on 2G/edge connections, needs no app store download, and degrades gracefully (a message either arrives or retries). This is a *feature for SIDS*, not a compromise — pitch it as such.
+2. **Degraded grading (LLM unreachable).** If the OpenRouter call fails after its single retry, the batch is **not lost** — it falls back to **last-known grade** (the farm grade persists; at handoff, if the re-grade can't complete, the batch holds its farm grade and is flagged for operator review rather than discarded). The audit trail records the degraded-mode event. Food still moves; the system doesn't stall on a dropped connection.
+3. **Degraded messaging (Telegram unreachable).** Outbound messages enter a **durable queue** with backoff retries (§14). The state machine advances regardless; the farmer simply receives the queued messages when connectivity returns. The source of truth is the DB + audit trail, never the chat client.
+
+**Pitch line:** *"The system never stops moving food because a tower went down. Connectivity degrades the *notifications*, not the *decisions* — every transition is logged locally and reconciled when the link returns."*
+
+**Roadmap:** a true offline-first PWA capture page (queue photos locally, sync on reconnect) and edge inference for grading (on-device model) for full off-grid operation.
 
 ---
 
