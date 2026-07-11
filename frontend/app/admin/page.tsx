@@ -4,19 +4,22 @@
  * `/admin` — the pitch-hero live cascade view.
  *
  * On mount, loads the batch board (`batchesStore`) and opens the live event
- * stream (`sseStore`), which auto-plays the mock cascade (batches 1001/1002
- * walking GRADED_FARM -> ... -> PAID over ~20s, one hitting a decay/
- * reroute-to-secondary-market anomaly, the other a route-disruption
- * anomaly). No manual "run demo" trigger needed — connecting is enough.
+ * stream (`sseStore`), which auto-plays the mock cascade once (batches
+ * 1001/1002 walking GRADED_FARM -> ... -> PAID over ~20s, one hitting a
+ * decay/reroute-to-secondary-market anomaly, the other a route-disruption
+ * anomaly). The "Run demo" / "Simulate route disruption" buttons reset and
+ * replay either cascade on demand via `runCascade()`, for a presenter who
+ * wants to trigger an anomaly again without reloading the page.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, type CardWobble } from "@/components/handdrawn/Card";
 import { Badge, type BadgeGrade } from "@/components/handdrawn/Badge";
+import { Button } from "@/components/handdrawn/Button";
 import { useBatchesStore } from "@/stores/batchesStore";
 import { useSseStore, type ConnectionStatus } from "@/stores/sseStore";
-import type { Batch } from "@/lib/api";
+import { runCascade, type Batch } from "@/lib/api";
 import type { StreamMessage } from "@/lib/sse";
 
 const WOBBLES: CardWobble[] = [1, 2, "none", 3];
@@ -112,6 +115,7 @@ function formatTime(iso: string): string {
 export default function AdminPage() {
   const { batches, loading, error, fetchBatches } = useBatchesStore();
   const { status, events, connect } = useSseStore();
+  const [runningDemo, setRunningDemo] = useState<"decay" | "disruption" | null>(null);
 
   useEffect(() => {
     fetchBatches();
@@ -120,13 +124,24 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleRunCascade = async (kind: "decay" | "disruption") => {
+    if (runningDemo) return;
+    setRunningDemo(kind);
+    try {
+      await runCascade(kind);
+      await fetchBatches();
+    } finally {
+      setRunningDemo(null);
+    }
+  };
+
   const outbound = batches.filter((b) => OUTBOUND_STATUSES.has(b.status));
   const returning = batches.filter((b) => RETURNING_STATUSES.has(b.status));
   const paid = batches.filter((b) => b.status === "PAID");
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-[1280px] px-4 py-8 md:px-8">
-      <AdminHeader status={status} />
+      <AdminHeader status={status} runningDemo={runningDemo} onRunCascade={handleRunCascade} />
 
       {error && (
         <div className="mb-6 rounded-card border-2 border-accent bg-accent/10 p-4 font-bold text-accent">
@@ -179,7 +194,15 @@ export default function AdminPage() {
 // Header
 // ---------------------------------------------------------------------------
 
-function AdminHeader({ status }: { status: ConnectionStatus }) {
+function AdminHeader({
+  status,
+  runningDemo,
+  onRunCascade,
+}: {
+  status: ConnectionStatus;
+  runningDemo: "decay" | "disruption" | null;
+  onRunCascade: (kind: "decay" | "disruption") => void;
+}) {
   return (
     <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-center gap-4">
@@ -191,9 +214,31 @@ function AdminHeader({ status }: { status: ConnectionStatus }) {
           <p className="text-gray-600">Real-time batch lifecycle, dual-purpose fleet, and provenance.</p>
         </div>
       </div>
-      <div className="flex items-center gap-2 rounded-full border-2 border-primary bg-white px-4 py-2 shadow-hard">
-        <span className={`h-3 w-3 rounded-full border border-primary ${connectionDotClass(status)}`} />
-        <span className="font-bold">{connectionLabel(status)}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="primary"
+          disabled={runningDemo !== null}
+          onClick={() => onRunCascade("decay")}
+          className="flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-lg">play_arrow</span>
+          {runningDemo === "decay" ? "Running…" : "Run demo"}
+        </Button>
+        <Button
+          type="button"
+          variant="accent"
+          disabled={runningDemo !== null}
+          onClick={() => onRunCascade("disruption")}
+          className="flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-lg">alt_route</span>
+          {runningDemo === "disruption" ? "Simulating…" : "Simulate route disruption"}
+        </Button>
+        <div className="flex items-center gap-2 rounded-full border-2 border-primary bg-white px-4 py-2 shadow-hard">
+          <span className={`h-3 w-3 rounded-full border border-primary ${connectionDotClass(status)}`} />
+          <span className="font-bold">{connectionLabel(status)}</span>
+        </div>
       </div>
     </header>
   );

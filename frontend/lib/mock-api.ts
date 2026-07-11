@@ -208,6 +208,9 @@ const STEP_MS = 3000;
 
 let cascadeRunning = false;
 
+/** Per-batch re-entrancy guard so the two cascades can be triggered independently. */
+const runningCascades = new Set<string>();
+
 /**
  * Walk `batchCascade` through the full happy-path-with-decay lifecycle:
  * graded_farm -> pooled -> contracted -> shipped -> graded_handoff(decay)
@@ -232,7 +235,41 @@ export async function playCascade(): Promise<void> {
   }
 }
 
-async function runDecayCascade(): Promise<void> {
+/**
+ * Reset `batchCascade`/`batchDisruption` (as selected by `kind`) back to
+ * `GRADED_FARM` and replay its cascade from the top. Used by the admin
+ * view's "Run demo" (kind: "decay") and "Simulate route disruption"
+ * (kind: "disruption") buttons so a presenter can replay either anomaly
+ * on demand instead of only getting the one autoplay on page load.
+ *
+ * No-op (returns immediately) if that specific cascade is already running,
+ * so a double-click doesn't double-speed the demo.
+ */
+export async function runCascade(kind: "decay" | "disruption"): Promise<void> {
+  const id = kind === "decay" ? batchCascade.id : batchDisruption.id;
+  if (runningCascades.has(id)) return;
+  runningCascades.add(id);
+  try {
+    resetCascadeBatch(id);
+    if (kind === "decay") {
+      await runDecayCascade();
+    } else {
+      await runDisruptionCascade();
+    }
+  } finally {
+    runningCascades.delete(id);
+  }
+}
+
+/** Reset one cascade batch back to its `GRADED_FARM` starting snapshot. */
+function resetCascadeBatch(id: string): void {
+  const snapshot = initialBatches.find((b) => b.id === id);
+  if (!snapshot) return;
+  batches = batches.map((b) => (b.id === id ? { ...snapshot, timeline: [...snapshot.timeline] } : b));
+  emit("reset", { batchId: id });
+}
+
+export async function runDecayCascade(): Promise<void> {
   const id = batchCascade.id;
 
   await wait(STEP_MS);
@@ -303,7 +340,7 @@ async function runDecayCascade(): Promise<void> {
   emit("payout", { ...payout });
 }
 
-async function runDisruptionCascade(): Promise<void> {
+export async function runDisruptionCascade(): Promise<void> {
   const id = batchDisruption.id;
 
   await wait(STEP_MS * 1.2);

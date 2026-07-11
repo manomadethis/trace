@@ -24,6 +24,9 @@
  *   GET  /payouts                -> getPayouts()            [admin-only]
  *   POST /capture/{token}       -> uploadCapture()
  *   GET  /demand                 -> getDemand()             [admin-only]
+ *
+ * runCascade() has no REST counterpart — mock-only demo control for the
+ * admin view's "Run demo" / "Simulate route disruption" buttons.
  */
 
 import {
@@ -34,6 +37,7 @@ import {
   getMockOffers,
   getMockPayouts,
   getMockPickups,
+  runCascade as runMockCascade,
 } from "./mock-api";
 
 // ---------------------------------------------------------------------------
@@ -363,6 +367,24 @@ export async function getAuditLog(): Promise<AuditEvent[]> {
   // No REST endpoint for historical audit events exists yet — SSE (`lib/sse.ts`)
   // is the only real-mode source for provenance events.
   return [];
+}
+
+/**
+ * Demo control, mock-only: reset one cascade batch to `GRADED_FARM` and
+ * replay it. Backs the admin view's "Run demo" (`kind: "decay"`) and
+ * "Simulate route disruption" (`kind: "disruption"`) buttons.
+ *
+ * No real-backend equivalent — the real cascade is driven by the backend's
+ * own scheduler/state machine, not a frontend trigger — so this is a no-op
+ * in real mode rather than calling an endpoint that doesn't exist.
+ */
+export async function runCascade(kind: "decay" | "disruption"): Promise<void> {
+  if (USE_MOCK) {
+    await runMockCascade(kind);
+    return;
+  }
+  // Real mode: nothing to trigger from the client; the backend's scheduler
+  // owns cascade timing.
 }
 
 // ---------------------------------------------------------------------------
