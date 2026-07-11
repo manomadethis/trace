@@ -38,3 +38,15 @@ body {
   transform: translate(4px, 4px);
   box-shadow: 0 0 0 0 #1a1a1a;
 }
+
+/* Small fixed rotations used across cards/buttons/badges for a hand-placed,
+ * slightly imperfect feel (matches the landing-page mockup). */
+.wobble-1 {
+  transform: rotate(-1deg);
+}
+.wobble-2 {
+  transform: rotate(1.5deg);
+}
+.wobble-3 {
+  transform: rotate(-2deg);
+}
