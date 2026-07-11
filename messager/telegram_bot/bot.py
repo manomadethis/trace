@@ -9,6 +9,10 @@ from telegram.ext import Application, ContextTypes, CommandHandler, MessageHandl
 # ---------------------------------------------------------------------------
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+# The capture link opens the farmer-facing /capture/[token] page in the
+# FRONTEND (Next.js on Vercel), not the backend API. The farmer photographs
+# the batch there; the page POSTs the photo to the backend.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 MENU_KEYBOARD = ReplyKeyboardMarkup(
     [
@@ -186,7 +190,7 @@ async def _create_batch(update: Update, chat_id: str, crop: str, kg: float) -> N
             )
             resp.raise_for_status()
             data = resp.json()
-            capture_url = f"{BACKEND_URL}/capture/{data['capture_token']}"
+            capture_url = f"{FRONTEND_URL}/capture/{data['capture_token']}"
 
             await update.message.reply_text(
                 f"\u2705 Batch #{data['batch_id']} created!\n\n"
@@ -284,5 +288,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print(f"TRACE bot polling \u2026  (backend: {BACKEND_URL})")
+    print(f"TRACE bot polling \u2026  (backend: {BACKEND_URL}, frontend: {FRONTEND_URL})")
     app.run_polling()

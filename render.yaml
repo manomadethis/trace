@@ -58,3 +58,5 @@ services:
           type: web
           name: trace-backend
           property: hostPortUrlParams
+      - key: FRONTEND_URL
+        sync: false # set to your Vercel URL, e.g. https://trace.vercel.app
