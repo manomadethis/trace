@@ -221,13 +221,49 @@ async function mockLogin(email: string, password: string): Promise<LoginResult> 
 // Batches
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalize a real-backend `/batches` row (snake_case, DB-shaped) into the
+ * frontend `Batch` type (camelCase, with mock-only fields like `timeline`).
+ * The real backend returns a minimal row; the UI was built against the richer
+ * mock shape, so we fill the missing fields with sensible defaults rather
+ * than crashing on `undefined` (e.g. `[...batch.timeline]`).
+ *
+ * Mock-mode batches already match the `Batch` shape and pass through unchanged.
+ */
+function normalizeBatch(raw: Record<string, unknown>): Batch {
+  // Already-normalized (mock) batch — has the camelCase fields already.
+  if (Array.isArray((raw as { timeline?: unknown }).timeline)) {
+    return raw as unknown as Batch;
+  }
+  const g = (k: string): unknown => raw[k];
+  const grade = (v: unknown): Grade | null =>
+    v === "A" || v === "B" ? (v as Grade) : v === "WASTE" || v === "Waste" ? "Waste" : null;
+  return {
+    id: String(g("id") ?? ""),
+    batchNumber: String(g("id") ?? ""),
+    crop: String(g("crop") ?? ""),
+    kg: Number(g("kg") ?? 0),
+    status: (g("status") ?? "HARVESTED") as BatchStatus,
+    farmGrade: grade(g("farm_grade")),
+    handoffGrade: grade(g("handoff_grade")),
+    finalGrade: grade(g("final_grade")),
+    farmLocationLabel: null,
+    handoffLocationLabel: null,
+    decayEvent: (g("decay_event") as string | null) ?? null,
+    marketCategory: null,
+    createdAt: (g("created_at") as string) ?? new Date(0).toISOString(),
+    timeline: [],
+  };
+}
+
 /** `GET /batches` — admin-only, ALL batches. */
 export async function getBatches(): Promise<Batch[]> {
   if (USE_MOCK) {
     await delay(150);
     return getMockBatches();
   }
-  return request<Batch[]>("/batches");
+  const rows = await request<Record<string, unknown>[]>("/batches");
+  return rows.map(normalizeBatch);
 }
 
 /**
@@ -252,8 +288,9 @@ export async function getBatch(idOrNumber: string): Promise<Batch | null> {
     await delay(150);
     return getMockBatch(idOrNumber);
   }
-  const all = await request<Batch[]>("/batches");
-  return all.find((b) => b.id === idOrNumber || b.batchNumber === idOrNumber) ?? null;
+  const all = await request<Record<string, unknown>[]>("/batches");
+  const normalized = all.map(normalizeBatch);
+  return normalized.find((b) => b.id === idOrNumber || b.batchNumber === idOrNumber) ?? null;
 }
 
 export async function disputeBatch(batchId: string): Promise<void> {

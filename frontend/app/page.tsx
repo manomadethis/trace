@@ -434,7 +434,7 @@ function TrackerResult({ state }: { state: TrackerState }) {
         </div>
       )}
       <div className="relative space-y-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-0.5 before:bg-gray-100">
-        {batch.timeline.map((entry) => (
+        {(batch.timeline ?? []).map((entry) => (
           <div
             key={`${entry.label}-${entry.timestamp}`}
             className="relative flex items-start gap-4"

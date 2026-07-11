@@ -296,7 +296,7 @@ function BatchCard({ batch, wobble }: { batch: Batch; wobble: CardWobble }) {
   const decayed =
     !!batch.farmGrade && !!batch.handoffGrade && batch.farmGrade !== batch.handoffGrade;
   const rerouted = batch.status === "REROUTED" || !!batch.marketCategory;
-  const reasonEntry = [...batch.timeline].reverse().find((t) =>
+  const reasonEntry = [...(batch.timeline ?? [])].reverse().find((t) =>
     /reroute|disrupt|decay/i.test(t.label)
   );
 
