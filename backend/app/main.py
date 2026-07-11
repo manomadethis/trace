@@ -47,8 +47,30 @@ else:
 
 
 @app.on_event("startup")
-def _start_scheduler() -> None:
-    """Start the handoff scheduler (the demo 'spoilage clock')."""
+def _startup() -> None:
+    """Create tables (idempotent) and start the handoff scheduler.
+
+    `create_all` is safe to run every boot — it only adds tables that don't
+    yet exist; it never drops or alters. This makes the app self-initializing:
+    the schema is guaranteed to exist even before `seed.py --reset` runs, so
+    the scheduler and routes don't crash on "relation does not exist" while
+    the DB is empty.
+
+    Wrapped so a transient/unreachable DB (e.g. tests using an overridden
+    engine, or the DB still starting up) never blocks app startup.
+    """
+    try:
+        from app.db import Base, engine
+
+        Base.metadata.create_all(bind=engine)
+    except Exception:  # noqa: BLE001 — startup must not fail on schema issues
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "startup create_all skipped (DB unreachable or overridden); "
+            "tables will be created by `seed.py --reset`.",
+            exc_info=True,
+        )
     scheduler.start()
 
 # Session auth uses itsdangerous-signed cookies (handled inside app.auth —

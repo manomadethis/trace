@@ -61,7 +61,13 @@ async def _handoff_after_delay(batch_id: int) -> None:
 
 
 async def _poll_loop() -> None:
-    """Continuously schedule handoffs for newly-SHIPPED batches."""
+    """Continuously schedule handoffs for newly-SHIPPED batches.
+
+    Tolerates the DB not being initialized yet (e.g. before the first seed
+    runs) — a missing-table / connection error is logged once at debug level
+    and retried next tick, rather than spamming the logs every 2 seconds.
+    """
+    warned_once = False
     while True:
         try:
             db = SessionLocal()
@@ -71,10 +77,20 @@ async def _poll_loop() -> None:
                         continue
                     _scheduled.add(batch.id)
                     asyncio.create_task(_handoff_after_delay(batch.id))
+                warned_once = False  # DB is healthy again
             finally:
                 db.close()
-        except Exception:  # noqa: BLE001
-            log.exception("handoff poll loop iteration failed")
+        except Exception as exc:  # noqa: BLE001 — DB-not-ready must not kill the poller
+            # Likely "relation batches does not exist" before seeding, or a
+            # transient connection error. Don't spam; one debug line per run.
+            log.debug("handoff poll skipped (DB not ready): %s", exc)
+            if not warned_once:
+                log.warning(
+                    "handoff scheduler: DB not ready (table missing or "
+                    "unreachable) — run `python -m app.seed --reset`. "
+                    "Suppressing further warnings until the DB is healthy."
+                )
+                warned_once = True
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
 
 
