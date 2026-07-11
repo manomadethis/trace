@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     openrouter_model: str = ""
     telegram_bot_token: str = ""
     llm_justification_model: str = ""
+    reseed_secret: str = ""  # gates POST /admin/reseed (the no-Shell escape hatch)
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

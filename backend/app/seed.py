@@ -244,6 +244,22 @@ def run_seed(db: Session) -> None:
     db.commit()
 
 
+def reseed() -> None:
+    """Drop + recreate all tables on the configured engine, then seed.
+
+    Shared by the CLI ``--reset`` path and the ``POST /admin/reseed`` HTTP
+    escape hatch (for hosts where Render Shell isn't available). Always does
+    a full reset so the demo DB is deterministic regardless of prior state.
+    """
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    db = SessionLocal()
+    try:
+        run_seed(db)
+    finally:
+        db.close()
+
+
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint: parse ``--reset``, wire the engine, and run the seed.
 
@@ -263,14 +279,13 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.reset:
-        Base.metadata.drop_all(engine)
-        Base.metadata.create_all(engine)
-
-    db = SessionLocal()
-    try:
-        run_seed(db)
-    finally:
-        db.close()
+        reseed()
+    else:
+        db = SessionLocal()
+        try:
+            run_seed(db)
+        finally:
+            db.close()
 
     print("Seed complete.")
 

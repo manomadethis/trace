@@ -13,11 +13,12 @@ Definition of Done checks that an authenticated admin can open the connection
 and that it holds, streaming events as they are published.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import require_admin
+from app.config import settings
 from app.db import get_db
 from app.events import subscribe
 from app.models import Route
@@ -57,6 +58,33 @@ def route_disruption(db: Session = Depends(get_db), _=Depends(require_admin)):
         "washed_out": True,
         "detail": "primary route disrupted — next handoff reroutes to fallback composter",
     }
+
+
+@router.post("/admin/reseed")
+def reseed(x_reseed_secret: str | None = Header(default=None)):
+    """Bootstrap escape hatch: drop, recreate, and seed the DB over HTTP.
+
+    For hosts where Render Shell / a one-off job isn't available. Gated by a
+    shared secret (``RESEED_SECRET`` env var) checked via the
+    ``X-RESEED-SECRET`` header — *not* the normal session auth, because the
+    seed users don't exist yet to authenticate against (chicken-and-egg).
+
+    Returns ``{"ok": true, "detail": "Seed complete."}`` on success.
+    """
+    secret = settings.reseed_secret
+    if not secret:
+        raise HTTPException(
+            status_code=503,
+            detail="Reseed disabled — set RESEED_SECRET on the server to enable.",
+        )
+    if not x_reseed_secret or x_reseed_secret != secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    # Imported lazily to avoid importing seed (and its engine wiring) at
+    # module-load time / in tests.
+    from app.seed import reseed as _reseed
+
+    _reseed()
+    return {"ok": True, "detail": "Seed complete."}
 
 
 async def _event_generator():
