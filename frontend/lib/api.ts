@@ -264,13 +264,33 @@ export async function disputeBatch(batchId: string): Promise<void> {
 // Contracts
 // ---------------------------------------------------------------------------
 
+/**
+ * The real backend (`backend/app/routers/contracts.py`) returns contracts as
+ * `{id, crop, grade, kg_target, status}` — snake_case, per FastAPI's default
+ * JSON serialization of the raw dicts it builds. The `Contract` type here is
+ * camelCase (`kgTarget`) to match the rest of the frontend's naming
+ * convention, so every real-mode contract response has to be mapped through
+ * this one shared function rather than duplicating the field rename in each
+ * endpoint wrapper.
+ */
+function mapContract(raw: Record<string, unknown>): Contract {
+  return {
+    id: String(raw.id),
+    crop: raw.crop as string,
+    grade: raw.grade as string,
+    kgTarget: raw.kg_target as number,
+    status: raw.status as Contract["status"],
+  };
+}
+
 /** `GET /contracts` — admin-only, all contracts. */
 export async function getContracts(): Promise<Contract[]> {
   if (USE_MOCK) {
     await delay(150);
     return getMockContracts();
   }
-  return request<Contract[]>("/contracts");
+  const raw = await request<Record<string, unknown>[]>("/contracts");
+  return raw.map(mapContract);
 }
 
 /** `GET /contracts/mine` — scoped to the calling premium buyer. */
@@ -279,7 +299,8 @@ export async function getMyContracts(): Promise<Contract[]> {
     await delay(150);
     return getMockContracts();
   }
-  return request<Contract[]>("/contracts/mine");
+  const raw = await request<Record<string, unknown>[]>("/contracts/mine");
+  return raw.map(mapContract);
 }
 
 export async function confirmContract(contractId: string): Promise<void> {

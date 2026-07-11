@@ -274,6 +274,7 @@ async function runDecayCascade(): Promise<void> {
     from: "GRADED_HANDOFF",
     to: "REROUTED",
     reason_code: "quality_mismatch",
+    market_category: "secondary_market",
   });
 
   await wait(STEP_MS);
@@ -343,6 +344,7 @@ async function runDisruptionCascade(): Promise<void> {
     from: "GRADED_HANDOFF",
     to: "REROUTED",
     reason_code: "route_disruption",
+    market_category: "secondary_market",
   });
   emit("anomaly", { batchId: id, kind: "route_disruption" });
 
