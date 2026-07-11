@@ -59,12 +59,12 @@ trace/
     tailwind.config.ts         # Hand-Drawn tokens (wobbly radii, hard shadows, fonts)
     app/                       # Next.js App Router
       layout.tsx               # MantineProvider + Tailwind + fonts (Kalam, Patrick Hand)
-      capture/[token]/page.tsx # the one photo-upload surface
-      farmer/                  # read-only batch/payout view
-      premium-buyer/           # contract confirm + disputes
-      secondary-buyer/         # incoming reroute offers
+      capture/[token]/page.tsx # the one photo-upload surface (farmer reaches via Telegram link)
+      admin/                   # operator pitch-hero cascade view (SSE + provenance)
+      premium-buyer/           # primary customer: own contract confirm + disputes
+      secondary-buyer/         # secondary customer: incoming reroute offers
       composter/               # waste pickups
-      admin/                   # pitch-hero cascade view (SSE)
+      # (no /farmer route — farmers are Telegram-only; see product spec §4a)
     components/handdrawn/      # Button, Card, Input, Badge, Tape, Thumbtack — design system
     stores/                    # Zustand stores (batches, contracts, sse)
     lib/                       # api client, sse client, mock-api (for unblocked dev)
@@ -98,11 +98,12 @@ Each slice branches off `main` after Phase 0 lands, codes against the contracts 
 
 ### Slice A — Frontend & UI (teammate-owned)
 
-**Scope:** all six routes, the Hand-Drawn design system, REST + SSE consumption.
+**Scope:** five web surfaces for **admins and customers only** (farmers are Telegram-only — no `/farmer` route): `/capture/[token]`, `/admin`, `/premium-buyer`, `/secondary-buyer`, `/composter`. The Hand-Drawn design system, REST + SSE consumption.
 **Tech:** Next.js App Router, Tailwind + Hand-Drawn tokens, Mantine for behavior primitives only, Zustand for state.
 **Key property:** builds against a **mock API** (`lib/mock-api`) from minute one, so it is never blocked on backend slices. The mock returns canned batches/contracts and a fake SSE stream that plays the cascade. Swapping to the real API is a config flip once endpoints land.
-**Deliverables:** `/capture/[token]` (camera upload, coin-in-frame, no login), `/farmer` (read-only batches + payouts), `/premium-buyer` (contract confirm + disputes), `/secondary-buyer` (incoming reroute offers), `/composter` (waste pickups), `/admin` (the pitch-hero live cascade via SSE + provenance timeline).
-**Hand-off:** consumes `GET /batches`, `GET /contracts`, `POST /contracts/{id}/confirm`, `GET /admin/stream` (SSE), `POST /capture` — all defined in §5.
+**Deliverables:** `/capture/[token]` (camera upload, coin-in-frame, no login — reached by farmers via the Telegram link), `/admin` (the pitch-hero live cascade via SSE + provenance timeline), `/premium-buyer` (their **own contract**, grade+produce framed, with HITL confirm + disputes), `/secondary-buyer` (incoming reroute offers, no contract), `/composter` (waste pickups).
+**Visibility rule (product spec §4a):** the frontend **never** shows contracts or buyer identities to farmers — but there is no farmer web view anyway. The premium-buyer view shows *that buyer's own* contract only; secondary/composter see offers/pickups, not contracts. Only `/admin` sees all contracts.
+**Hand-off:** consumes `GET /batches`, `GET /contracts` (admin) + `GET /contracts/mine` (premium buyer), `POST /contracts/{id}/confirm`, `GET /admin/stream` (SSE), `POST /capture` — defined in §5.
 
 ### Slice B — Intake & Comms
 
@@ -111,7 +112,8 @@ Each slice branches off `main` after Phase 0 lands, codes against the contracts 
 **Deliverables:**
 - Telegram webhook handler: receives intent ("harvest 10kg tomatoes"), resolves/creates the `Farmer` (by `telegram_chat_id`), creates a `Batch` at `HARVESTED`, replies with the one-tap `/capture/{token}` link.
 - `POST /capture/{token}` upload endpoint: accepts the photo, stores it, and advances `harvested→graded_farm` (then triggers grading via Slice C's `grade()`).
-- `services/messaging.py` → `send_message(chat_id, text)`: the single outbound channel. The grade, the reroute reason, the payout — all sent to the farmer through this.
+- `services/messaging.py` → `send_message(chat_id, text)`: the single outbound channel. The grade, the reroute reason, the payout — all sent to the farmer through this. **Visibility rule (product spec §4a):** all farmer-facing messages are **grade + outcome + buyer-type-category** framed (e.g. "sold at the Grade B price to the secondary market"), never naming a specific buyer, contract, or destination.
+- **Demand-feed messaging:** on intent (and on request, e.g. "what's needed?"), the bot messages the farmer the **anonymized demand feed** — crop + grade + rough quantity + urgency, derived by Slice D from open contracts (no buyer/price/contract-id). This is the *only* demand signal a farmer gets (there is no farmer web UI).
 **Hand-off:** imports `grade(image, crop)` from Slice C; calls `batch.transition()` from core.
 
 ### Slice C — Grading & Decay
@@ -129,7 +131,7 @@ Each slice branches off `main` after Phase 0 lands, codes against the contracts 
 **Scope:** aggregation, contract matching, the self-healing cascade, all money math.
 **Tech:** plain Python rules engine + one LLM call (justification).
 **Deliverables:**
-- `services/aggregation.py`: pool `GRADED_FARM` batches by crop + grade + geo into a `VirtualShipment` against a `Contract`; compute each batch's `%` contribution.
+- `services/aggregation.py`: pool `GRADED_FARM` batches by crop + grade + geo into a `VirtualShipment` against a `Contract`; compute each batch's `%` contribution. Also derives the **anonymized demand feed** (crop + grade + rough qty + urgency) from open contracts — with no buyer/price/contract-id — for Slice B to message to farmers and for `GET /demand` (used by the admin view).
 - Contract matching + the HITL confirm transition (`pooled→contracted` blocked until buyer confirms).
 - `contracted→shipped` (assign `Route`) → `shipped→graded_handoff` (calls Slice C's `grade(simulate_decay(original))`). **"Spoilage clock" is MVP-simple:** there is no real wall-clock timer — the seeded decay-triggered batch is marked at seed time to decay on its handoff pass, and a short `asyncio.sleep` (a few seconds, for demo pacing) gates the `shipped→graded_handoff` transition. A real shelf-life timer is roadmap.
 - `services/routing.py` → `decide_route(batch, handoff_grade, contract, buyers) -> RoutingDecision`: the deterministic rules engine (product spec §10), including returning-leg preference via straight-line lat/lng. Drives `graded_handoff→{delivered | rerouted | composted}` and the `rerouted→delivered_secondary` transition.
@@ -166,7 +168,9 @@ POST /telegram/webhook  -> receives inbound messages
 Batch.transition(dest: State, **ctx) -> None   # the ONLY way state changes
 publish(event_type: str, payload: dict) -> None  # SSE bus
 GET /admin/stream        -> text/event-stream (SSE)
-GET /batches, GET /contracts, POST /contracts/{id}/confirm, GET /payouts  # REST
+GET /batches, GET /contracts, GET /contracts/mine, POST /contracts/{id}/confirm, GET /payouts  # REST
+GET /demand              -> anonymized demand feed [{crop, grade, qty_band, urgency}]  # for admin view
+                             (the same feed is sent to farmers as Telegram messages by Slice B)
 ```
 
 **The single rule that keeps merges clean:** `batch.status` is mutated **only** inside `Batch.transition()`, in core. Every slice calls `transition()`. No slice writes `batch.status = "..."` directly. This guarantees the four slice branches never conflict on the most-contended field.

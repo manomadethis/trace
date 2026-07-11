@@ -45,7 +45,7 @@ The MVP is the honest ancestor of the production diagram, not a throwaway protot
 | Justification text | **One Claude/GPT call** per routing decision | Structured in, text out. The "Golden Prompt" deliverable. |
 | Frontend | **Decided by frontend team member** | See §4. Not locked to a framework. |
 
-**Frontend constraint (firm):** whatever framework is chosen, it must (a) be a separate deploy consuming the FastAPI REST + SSE API, (b) render four role surfaces (Farmer, Premium buyer, Secondary buyer, Composter) plus a hidden Admin view, and (c) host the `/capture/[token]` photo-upload page. The backend contract is framework-agnostic.
+**Frontend constraint (firm):** whatever framework is chosen, it must (a) be a separate deploy consuming the FastAPI REST + SSE API, (b) render the web role surfaces — **Admin, Premium buyer, Secondary buyer, Composter** (farmers are Telegram-only; see §4a) — and (c) host the `/capture/[token]` photo-upload page. The backend contract is framework-agnostic.
 
 ---
 
@@ -56,9 +56,22 @@ The MVP is the honest ancestor of the production diagram, not a throwaway protot
 - The farmer does **not** attach photos in Telegram. Ever. No chat-media plumbing.
 - Flow: farmer messages the bot → bot replies with a one-tap camera link carrying a token → the link opens the phone browser to `/capture/[token]` (no app, no login) → farmer photographs the batch with a coin in frame → uploads straight to the backend → bot replies in Telegram with the grade, then later with shipment/payout/reroute updates.
 - The `/capture/[token]` page is the **single, universal photo intake** — used by every farmer.
-- A tech-savvy farmer may additionally use a read-only web dashboard to browse their batches and payouts, but **submission is always the link**.
+- There is **no farmer web dashboard.** Farmers interact with TRACE exclusively through Telegram — the demand feed, their batch grades, and their payouts all arrive as Telegram messages. The only web surface a farmer ever touches is the `/capture/[token]` camera link. (The web UI is for admins and customers only; see §4a.)
 
-Pitch line this enables: *"A farmer with a basic phone and Telegram can move a harvest to a resort contract — no app, no login."*
+Pitch line this enables: *"A farmer with a basic phone and Telegram can move a harvest to market — no app, no login."*
+
+---
+
+## 4a. Visibility & data-flow boundaries (who sees what)
+
+**Contracts are a backend concept.** They are *not* surfaced to farmers. The system routes farmer output to contracts internally (aggregation, §10); the farmer never learns which contract or buyer their batch fulfilled. This mirrors real agricultural markets: farmers respond to **market demand**, not individual purchase orders, and it protects buyer relationships.
+
+- **Farmer (Telegram only — no web UI):** everything reaches the farmer as Telegram messages — the **demand feed** (an anonymized, aggregated projection of open contracts: crop + grade + rough quantity + urgency — *no buyer name, no price, no contract id*), their own batch grades, and payouts shown as **amount + grade + buyer-type category** (e.g. "premium market" / "secondary market" / "composted" — the *category*, never the specific buyer). The reroute/payout messages are **grade + outcome + category-framed**, never naming a destination (e.g. *"your tomatoes dropped to Grade B in transit, so they sold at the Grade B price to the secondary market — $5.10 instead of $12.40. Still sold, nothing wasted."*). There is **no `/farmer` web route** — farmers never touch the web UI except the one-tap `/capture/[token]` camera link.
+- **Premium buyer sees (web):** *their own* contract only, framed in **grade + produce** terms ("your Grade A tomato contract is 78% fulfilled"), not farmers' identities.
+- **Secondary buyer / composter see (web):** incoming offers/pickups (grade + kg + price), no contract.
+- **Admin / operator sees (web):** everything including contracts — this is the internal/operator view for running the platform.
+
+The demand feed is derived (Slice D) from open contracts and is also the natural input to the roadmap Planning Agent.
 
 ---
 
@@ -87,12 +100,12 @@ Pitch line this enables: *"A farmer with a basic phone and Telegram can move a h
         │ REST + SSE
         ▼
  FRONTEND (framework TBD) — Vercel or equivalent
-   /capture/[token]  ★ the one photo upload surface
-   /farmer           (read-only: batches, payouts)
-   /premium-buyer    (resort/hotel/supermarket/restaurant)
-   /secondary-buyer  (school feeding / discount market)
-   /composter
-   /admin            ★ hidden pitch-hero view
+   /capture/[token]  ★ the one photo upload surface (farmer reaches via Telegram link)
+   /admin            ★ operator pitch-hero view (cascade + provenance)
+   /premium-buyer    (resort/hotel/supermarket/restaurant — own contract)
+   /secondary-buyer  (school feeding / discount market — incoming offers)
+   /composter        (waste pickups)
+   (no /farmer route — farmers are Telegram-only: see §4a)
 ```
 
 The ★-marked decay loop is the differentiator: simulated in transit, detected by a real second grade on a degraded image, self-healed by the deterministic rules engine.
